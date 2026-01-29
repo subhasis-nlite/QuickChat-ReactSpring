@@ -1,0 +1,187 @@
+/* ===== App layout ===== */
+.qc-app {
+  height: 100%;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  background: #fff;
+  overflow: hidden; /* IMPORTANT: prevent qc-app scroll */
+}
+
+/* ===== Sidebar: header + newchat fixed, list scrolls ===== */
+.qc-sidebar {
+  border-right: 1px solid #e5e5e5;
+  display: grid;
+  grid-template-rows: 56px 56px 1fr;
+  min-height: 0; /* IMPORTANT so chat list can scroll */
+  background: #ffffff;
+}
+
+.qc-sidebar-header {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-weight: 700;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.qc-newchat {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.qc-newchat input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  outline: none;
+  min-width: 0;
+}
+
+.qc-newchat button {
+  width: 44px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.qc-chatlist {
+  overflow: auto; /* ONLY this scrolls in sidebar */
+  min-height: 0; /* IMPORTANT for grid scroll */
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qc-chatitem {
+  text-align: left;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 10px;
+  background: white;
+  cursor: pointer;
+}
+
+.qc-chatitem.active {
+  border-color: #cfcfcf;
+}
+
+.qc-chattitle {
+  font-weight: 600;
+}
+
+.qc-chatsub {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-top: 4px;
+}
+
+/* ===== Main: header fixed, messages scroll, composer fixed ===== */
+.qc-main {
+  display: grid;
+  grid-template-rows: 56px 1fr 64px;
+  min-height: 0; /* IMPORTANT so messages can scroll */
+  min-width: 0; /* IMPORTANT so right pane can shrink */
+}
+
+.qc-main-header {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid #e5e5e5;
+  font-weight: 700;
+  background: white;
+  min-width: 0;
+}
+
+.qc-messages {
+  overflow: auto; /* ONLY this scrolls in main */
+  min-height: 0; /* IMPORTANT for grid scroll */
+  padding: 16px;
+  background: #efeae2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ===== Messages ===== */
+.qc-msg {
+  display: flex;
+  flex-direction: column;
+  margin: 6px 0;
+  max-width: min(70%, 720px);
+}
+
+.qc-msg.mine {
+  margin-left: auto;
+  align-items: flex-end;
+}
+
+.qc-msg.theirs {
+  margin-right: auto;
+  align-items: flex-start;
+}
+
+.qc-msg-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.qc-msg-bubble {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #e6e6e6;
+  background: #ffffff;
+  color: #111;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.qc-msg.mine .qc-msg-bubble {
+  background: #d9fdd3;
+  border-color: #cdecc7;
+}
+
+.qc-msg-time {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+/* ===== Composer ===== */
+.qc-composer {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid #e5e5e5;
+  background: white;
+}
+
+.qc-composer input {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  outline: none;
+  min-width: 0;
+}
+
+.qc-composer button {
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+/* ===== Mobile: stack panes ===== */
+@media (max-width: 820px) {
+  .qc-app {
+    grid-template-columns: 1fr;
+  }
+}

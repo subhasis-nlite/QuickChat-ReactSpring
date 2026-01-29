@@ -1,0 +1,32 @@
+Steps
+
+1: Start Docker container with Postgres using docker compose.yml
+
+- go to Infra folder where the docker compose file.yml is present
+- run command "docker compose up -d"
+- run command "docker ps"
+
+you should see the list of the docker container started
+
+
+2: Run the backend using IntelliJ
+
+- Open the Backend folder as a new project in IntelliJ
+- Add the VM option "-Duser.timezone=UTC" in the edit configuration, without the quotes
+- then start the backend application from IntelliJ
+- you should see in the console "Started QuickchatApplication in .... seconds"
+
+Then test the backend with below commands
+
+"http://localhost:8080/actuator/health" in browser - this should show all services and db is up
+"http://localhost:8080/api/chats" in the browser returns the list of chats
+
+http://localhost:8080/api/chats/<chat ID>/messages - chat ID should be retrieved from the chats api
+
+
+Start Frontend
+
+npm run dev -- --host
+npm run dev -- --host 0.0.0.0 --port 5173
+
+

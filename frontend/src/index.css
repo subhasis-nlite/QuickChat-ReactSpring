@@ -1,0 +1,28 @@
+:root {
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Arial,
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #111;
+  background: #f0f2f5;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden; /* IMPORTANT: prevent page scroll */
+}
+
+* {
+  box-sizing: border-box;
+}
