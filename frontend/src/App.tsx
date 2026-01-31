@@ -200,19 +200,22 @@ export default function App() {
 
   async function onCreateChat() {
     const title = newChatTitle.trim();
-    const participantName = newChatParticipant.trim();
+    const participants = newChatParticipant
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     if (!title) {
       alert("Enter a chat title");
       return;
     }
-    if (!participantName) {
-      alert("Enter participant username for 1-to-1 chat");
+    if (participants.length < 1) {
+      alert("Enter at least one participant username");
       return;
     }
 
     try {
-      await createChat(title, [participantName]);
+      await createChat(title, participants);
       setNewChatTitle("");
       setNewChatParticipant("");
       await refreshChats();
@@ -331,7 +334,7 @@ export default function App() {
           <input
             value={newChatParticipant}
             onChange={(e) => setNewChatParticipant(e.target.value)}
-            placeholder="Participant username..."
+            placeholder="Participants (comma-separated: deba, amit, sara)..."
             onKeyDown={(e) => {
               if (e.key === "Enter") onCreateChat();
             }}

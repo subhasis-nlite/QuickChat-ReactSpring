@@ -35,12 +35,14 @@
 }
 
 .qc-newchat input {
-  flex: 1 1 140px; /* ✅ allows wrap */
+  flex: 1 1 100%;
+  width: 100%;
+  min-width: 0; /* allow flexbox to size correctly */
   padding: 10px;
   border: 1px solid #ddd;
   border-radius: 10px;
   outline: none;
-  min-width: 140px; /* ✅ prevents tiny input */
+  box-sizing: border-box;
 }
 
 .qc-newchat button {
