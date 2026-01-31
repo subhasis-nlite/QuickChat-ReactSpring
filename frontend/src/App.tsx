@@ -1,34 +1,46 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
-import { createChat, listChats, listMessages, sendMessage } from "./api/client";
-import type { Chat, Message } from "./api/client";
+import type { Chat, Message, User } from "./api/client";
+import {
+  createChat,
+  listChats,
+  listMessages,
+  login,
+  logout,
+} from "./api/client";
 import { Client } from "@stomp/stompjs";
 
-const API_BASE = "192.168.1.8:8080"; // same host/port as backend
+const API_BASE = "192.168.1.8:8080";
 const WS_URL = `ws://${API_BASE}/ws`;
 
-function getOrCreateMe() {
-  const key = "qc_me";
-  const existing = localStorage.getItem(key);
-  if (existing && existing.trim()) return existing;
-
-  const suggested = `user${Math.floor(Math.random() * 9000 + 1000)}`;
-  const name = window.prompt("Choose your name", suggested) || suggested;
-  localStorage.setItem(key, name);
-  return name;
+function getStoredAuth(): { token: string; user: User | null } {
+  const token = localStorage.getItem("qc_token") || "";
+  const userStr = localStorage.getItem("qc_user") || "";
+  try {
+    const user = userStr ? (JSON.parse(userStr) as User) : null;
+    return { token, user };
+  } catch {
+    return { token, user: null };
+  }
 }
 
 export default function App() {
-  const me = useMemo(() => getOrCreateMe(), []);
+  const [{ token, user }, setAuth] = useState(getStoredAuth);
+
+  const me = user?.username ?? "";
+
+  const [loginName, setLoginName] = useState("");
+  const [loginError, setLoginError] = useState("");
 
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newChatTitle, setNewChatTitle] = useState("");
+  const [newChatParticipant, setNewChatParticipant] = useState("");
   const [newMessage, setNewMessage] = useState("");
 
   const stompRef = useRef<Client | null>(null);
-  const subRef = useRef<any>(null);
+  const subRef = useRef<{ unsubscribe: () => void } | null>(null);
 
   const selectedChat = useMemo(
     () => chats.find((c) => c.id === selectedChatId) ?? null,
@@ -46,33 +58,71 @@ export default function App() {
     setMessages(data);
   }
 
-  // Initial load
+  // ---------- LOGIN ----------
+  async function onLogin() {
+    setLoginError("");
+    const username = loginName.trim();
+    if (!username) return;
+
+    try {
+      const res = await login(username);
+      localStorage.setItem("qc_token", res.token);
+      localStorage.setItem("qc_user", JSON.stringify(res.user));
+      setAuth({ token: res.token, user: res.user });
+    } catch (e: any) {
+      setLoginError(e?.message || "Login failed");
+    }
+  }
+
+  function onLogout() {
+    try {
+      subRef.current?.unsubscribe?.();
+    } catch {}
+    stompRef.current?.deactivate?.();
+    stompRef.current = null;
+    subRef.current = null;
+
+    logout();
+    setAuth({ token: "", user: null });
+    setChats([]);
+    setMessages([]);
+    setSelectedChatId(null);
+  }
+
+  // ---------- AFTER LOGIN: load chats ----------
   useEffect(() => {
+    if (!token) return;
     refreshChats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
-  // Load messages when chat changes
+  // ---------- load messages when chat changes ----------
   useEffect(() => {
+    if (!token) return;
     if (selectedChatId) refreshMessages(selectedChatId);
-  }, [selectedChatId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, selectedChatId]);
 
-  // Connect STOMP once
+  // ---------- WebSocket connect (after login) ----------
   useEffect(() => {
+    if (!token) return;
+
     const client = new Client({
       brokerURL: WS_URL,
       reconnectDelay: 1000,
+      connectHeaders: {
+        Authorization: `Bearer ${token}`, // IMPORTANT
+      },
     });
 
     client.onConnect = () => {
-      // when connected, subscribe to currently selected chat (if any)
+      // subscribe to currently selected chat
       if (selectedChatId) {
         subRef.current = client.subscribe(
           `/topic/chats/${selectedChatId}`,
           (frame) => {
             const msg = JSON.parse(frame.body) as Message;
             setMessages((prev) => {
-              // avoid duplicates if you refresh + WS same time
               if (prev.some((m) => m.id === msg.id)) return prev;
               return [...prev, msg];
             });
@@ -90,22 +140,21 @@ export default function App() {
       } catch {}
       client.deactivate();
       stompRef.current = null;
+      subRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
-  // Re-subscribe when selected chat changes
+  // ---------- re-subscribe when chat changes ----------
   useEffect(() => {
     const client = stompRef.current;
-    if (!client || !client.connected) return;
+    if (!token || !client || !client.connected) return;
 
     try {
       subRef.current?.unsubscribe?.();
     } catch {}
 
     if (!selectedChatId) return;
-
-    // also refresh messages from REST (history)
     refreshMessages(selectedChatId);
 
     subRef.current = client.subscribe(
@@ -119,36 +168,112 @@ export default function App() {
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedChatId]);
+  }, [token, selectedChatId]);
 
   async function onCreateChat() {
     const title = newChatTitle.trim();
-    if (!title) return;
-    await createChat(title);
-    setNewChatTitle("");
-    await refreshChats();
+    const participantName = newChatParticipant.trim();
+
+    if (!title) {
+      alert("Enter a chat title");
+      return;
+    }
+    if (!participantName) {
+      alert("Enter participant username for 1-to-1 chat");
+      return;
+    }
+
+    try {
+      await createChat(title, [participantName]);
+      setNewChatTitle("");
+      setNewChatParticipant("");
+      await refreshChats();
+    } catch (e) {
+      alert(
+        "Failed to create chat: " +
+          (e instanceof Error ? e.message : "Unknown error"),
+      );
+    }
   }
 
-  // Send via WebSocket if connected; else fallback to REST
+  // Send via WebSocket (server will set sender)
   async function onSend() {
     if (!selectedChatId) return;
     const content = newMessage.trim();
     if (!content) return;
 
-    const client = stompRef.current;
     setNewMessage("");
+    const client = stompRef.current;
 
     if (client && client.connected) {
       client.publish({
         destination: `/app/chats/${selectedChatId}/send`,
-        body: JSON.stringify({ content, sender: me }),
+        body: JSON.stringify({ content }), // NO sender
       });
       return;
     }
 
-    // fallback (in case WS not connected)
-    await sendMessage(selectedChatId, content, me);
+    // fallback: refresh (optional). Usually WS is connected.
     await refreshMessages(selectedChatId);
+  }
+
+  // ---------- UI ----------
+  if (!token || !user) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          padding: 16,
+        }}
+      >
+        <div
+          style={{
+            width: 360,
+            maxWidth: "100%",
+            background: "white",
+            padding: 16,
+            borderRadius: 12,
+            border: "1px solid #ddd",
+          }}
+        >
+          <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 12 }}>
+            QuickChat Login
+          </div>
+          <input
+            value={loginName}
+            onChange={(e) => setLoginName(e.target.value)}
+            placeholder="Enter username (e.g. amit)"
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid #ddd",
+              marginBottom: 10,
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onLogin();
+            }}
+          />
+          <button
+            onClick={onLogin}
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 10,
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            Login
+          </button>
+          {loginError && (
+            <div style={{ marginTop: 10, color: "crimson" }}>{loginError}</div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -156,13 +281,21 @@ export default function App() {
       <aside className="qc-sidebar">
         <div className="qc-sidebar-header">
           QuickChat <span style={{ opacity: 0.7, fontSize: 12 }}>({me})</span>
+          <button onClick={onLogout} style={{ float: "right" }}>
+            Logout
+          </button>
         </div>
 
         <div className="qc-newchat">
           <input
             value={newChatTitle}
             onChange={(e) => setNewChatTitle(e.target.value)}
-            placeholder="New chat title..."
+            placeholder="Chat title..."
+          />
+          <input
+            value={newChatParticipant}
+            onChange={(e) => setNewChatParticipant(e.target.value)}
+            placeholder="Participant username..."
           />
           <button onClick={onCreateChat}>+</button>
         </div>

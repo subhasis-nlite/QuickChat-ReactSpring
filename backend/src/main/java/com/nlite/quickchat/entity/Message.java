@@ -21,8 +21,9 @@ public class Message {
     @Column(nullable = false)
     private String content;
 
-    @Column(nullable = false, length = 80)
-    private String sender;
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "sender_id", nullable = false)
+    private User sender;
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
@@ -30,10 +31,10 @@ public class Message {
     public UUID getId() { return id; }
     public Chat getChat() { return chat; }
     public String getContent() { return content; }
-    public String getSender() { return sender; }
+    public User getSender() { return sender; }
     public Instant getCreatedAt() { return createdAt; }
 
     public void setChat(Chat chat) { this.chat = chat; }
     public void setContent(String content) { this.content = content; }
-    public void setSender(String sender) { this.sender = sender; }
+    public void setSender(User sender) { this.sender = sender; }
 }

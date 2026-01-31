@@ -19,6 +19,7 @@ you should see the list of the docker container started
 Then test the backend with below commands
 
 "http://localhost:8080/actuator/health" in browser - this should show all services and db is up
+http://localhost:8080/actuator/mappings in browser - this should show all mappings
 "http://localhost:8080/api/chats" in the browser returns the list of chats
 
 http://localhost:8080/api/chats/<chat ID>/messages - chat ID should be retrieved from the chats api
