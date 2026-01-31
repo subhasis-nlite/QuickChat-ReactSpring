@@ -31,34 +31,31 @@ public class ChatService {
     }
 
     public Chat create(String title, User owner, List<UUID> participantIds) {
-        // Validate: must have at least owner + 1 other person = 2 for 1-to-1, or N for group
         if (participantIds == null || participantIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one participant required");
         }
 
-        // Ensure owner is in the participant list
         if (!participantIds.contains(owner.getId())) {
             participantIds.add(owner.getId());
         }
 
-        // Remove duplicates
         participantIds = participantIds.stream().distinct().toList();
 
-        // Validate participant count
         if (participantIds.size() < 2) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chat requires at least 2 participants (1-to-1)");
         }
 
-        // Create the chat
         Chat chat = new Chat();
         chat.setTitle(title);
         chat.setOwner(owner);
         Chat savedChat = chatRepository.save(chat);
 
-        // Add all participants
         for (UUID participantId : participantIds) {
             User participant = userRepository.findById(participantId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Participant not found: " + participantId));
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Participant not found: " + participantId
+                    ));
 
             ChatParticipant cp = new ChatParticipant();
             cp.setChat(savedChat);
@@ -70,8 +67,11 @@ public class ChatService {
     }
 
     public List<Chat> listUserChats(UUID userId) {
-        // Only return chats where user is a participant
-        return participantRepository.findChatsForUser(userId);
+        // Repo returns ChatParticipant rows -> map to Chat list
+        return participantRepository.findByUserId(userId).stream()
+                .map(ChatParticipant::getChat)
+                .distinct()
+                .toList();
     }
 
     public Chat get(UUID id) {

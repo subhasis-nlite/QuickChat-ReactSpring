@@ -10,7 +10,7 @@ import {
 } from "./api/client";
 import { Client } from "@stomp/stompjs";
 
-const API_BASE = "192.168.1.8:8080";
+const API_BASE = `${window.location.hostname}:8080`;
 const WS_URL = `ws://${API_BASE}/ws`;
 
 function getStoredAuth(): { token: string; user: User | null } {
@@ -42,6 +42,12 @@ export default function App() {
   const stompRef = useRef<Client | null>(null);
   const subRef = useRef<{ unsubscribe: () => void } | null>(null);
 
+  // ✅ IMPORTANT: always keep latest selected chat id available to onConnect()
+  const selectedChatIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedChatIdRef.current = selectedChatId;
+  }, [selectedChatId]);
+
   const selectedChat = useMemo(
     () => chats.find((c) => c.id === selectedChatId) ?? null,
     [chats, selectedChatId],
@@ -50,7 +56,9 @@ export default function App() {
   async function refreshChats() {
     const data = await listChats();
     setChats(data);
-    if (!selectedChatId && data.length > 0) setSelectedChatId(data[0].id);
+    if (!selectedChatIdRef.current && data.length > 0) {
+      setSelectedChatId(data[0].id);
+    }
   }
 
   async function refreshMessages(chatId: string) {
@@ -103,6 +111,22 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, selectedChatId]);
 
+  // ---------- Helper: (re)subscribe to a chat topic ----------
+  function subscribeToChat(client: Client, chatId: string) {
+    try {
+      subRef.current?.unsubscribe?.();
+    } catch {}
+    subRef.current = null;
+
+    subRef.current = client.subscribe(`/topic/chats/${chatId}`, (frame) => {
+      const msg = JSON.parse(frame.body) as Message;
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    });
+  }
+
   // ---------- WebSocket connect (after login) ----------
   useEffect(() => {
     if (!token) return;
@@ -111,23 +135,26 @@ export default function App() {
       brokerURL: WS_URL,
       reconnectDelay: 1000,
       connectHeaders: {
-        Authorization: `Bearer ${token}`, // IMPORTANT
+        Authorization: `Bearer ${token}`, // IMPORTANT for your interceptor
       },
+
+      // ✅ helpful for debugging connection issues (leave on for now)
+      debug: (s) => console.log("[stomp]", s),
     });
 
+    client.onWebSocketError = (evt) => {
+      console.log("[ws-error]", evt);
+    };
+
+    client.onStompError = (frame) => {
+      console.log("[stomp-error]", frame.headers, frame.body);
+    };
+
     client.onConnect = () => {
-      // subscribe to currently selected chat
-      if (selectedChatId) {
-        subRef.current = client.subscribe(
-          `/topic/chats/${selectedChatId}`,
-          (frame) => {
-            const msg = JSON.parse(frame.body) as Message;
-            setMessages((prev) => {
-              if (prev.some((m) => m.id === msg.id)) return prev;
-              return [...prev, msg];
-            });
-          },
-        );
+      // ✅ subscribe to the latest selected chat (NOT captured state)
+      const chatId = selectedChatIdRef.current;
+      if (chatId) {
+        subscribeToChat(client, chatId);
       }
     };
 
@@ -148,25 +175,26 @@ export default function App() {
   // ---------- re-subscribe when chat changes ----------
   useEffect(() => {
     const client = stompRef.current;
-    if (!token || !client || !client.connected) return;
-
-    try {
-      subRef.current?.unsubscribe?.();
-    } catch {}
+    if (!token || !client) return;
 
     if (!selectedChatId) return;
+
+    // Always refresh history when switching chats
     refreshMessages(selectedChatId);
 
-    subRef.current = client.subscribe(
-      `/topic/chats/${selectedChatId}`,
-      (frame) => {
-        const msg = JSON.parse(frame.body) as Message;
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.id)) return prev;
-          return [...prev, msg];
-        });
-      },
-    );
+    // ✅ If socket isn't connected yet, wait until it is then subscribe.
+    if (!client.connected) {
+      const timer = window.setInterval(() => {
+        const c = stompRef.current;
+        if (c?.connected) {
+          subscribeToChat(c, selectedChatId);
+          window.clearInterval(timer);
+        }
+      }, 200);
+      return () => window.clearInterval(timer);
+    }
+
+    subscribeToChat(client, selectedChatId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, selectedChatId]);
 
@@ -196,25 +224,30 @@ export default function App() {
     }
   }
 
-  // Send via WebSocket (server will set sender)
+  // ✅ Send via WebSocket (broadcast should come back via /topic subscription)
   async function onSend() {
     if (!selectedChatId) return;
     const content = newMessage.trim();
     if (!content) return;
 
     setNewMessage("");
-    const client = stompRef.current;
 
-    if (client && client.connected) {
-      client.publish({
-        destination: `/app/chats/${selectedChatId}/send`,
-        body: JSON.stringify({ content }), // NO sender
-      });
+    const client = stompRef.current;
+    if (!client || !client.connected) {
+      alert("WebSocket not connected yet. Wait 1–2 seconds and try again.");
       return;
     }
 
-    // fallback: refresh (optional). Usually WS is connected.
-    await refreshMessages(selectedChatId);
+    client.publish({
+      destination: `/app/chats/${selectedChatId}/send`,
+      body: JSON.stringify({ content }),
+    });
+
+    // Optional optimistic UI (uncomment if you want instant local echo even before server broadcast)
+    // setMessages((prev) => [
+    //   ...prev,
+    //   { id: `local-${Date.now()}` as any, sender: me as any, content, createdAt: new Date().toISOString() } as any,
+    // ]);
   }
 
   // ---------- UI ----------
@@ -291,11 +324,17 @@ export default function App() {
             value={newChatTitle}
             onChange={(e) => setNewChatTitle(e.target.value)}
             placeholder="Chat title..."
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onCreateChat();
+            }}
           />
           <input
             value={newChatParticipant}
             onChange={(e) => setNewChatParticipant(e.target.value)}
             placeholder="Participant username..."
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onCreateChat();
+            }}
           />
           <button onClick={onCreateChat}>+</button>
         </div>

@@ -12,7 +12,7 @@
 .qc-sidebar {
   border-right: 1px solid #e5e5e5;
   display: grid;
-  grid-template-rows: 56px 56px 1fr;
+  grid-template-rows: 56px auto 1fr; /* ✅ changed: newchat can grow */
   min-height: 0; /* IMPORTANT so chat list can scroll */
   background: #ffffff;
 }
@@ -25,24 +25,28 @@
   border-bottom: 1px solid #e5e5e5;
 }
 
+/* ✅ changed: allow wrapping so + button never disappears */
 .qc-newchat {
   display: flex;
+  flex-wrap: wrap; /* ✅ key fix */
   gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid #e5e5e5;
 }
 
 .qc-newchat input {
-  flex: 1;
+  flex: 1 1 140px; /* ✅ allows wrap */
   padding: 10px;
   border: 1px solid #ddd;
   border-radius: 10px;
   outline: none;
-  min-width: 0;
+  min-width: 140px; /* ✅ prevents tiny input */
 }
 
 .qc-newchat button {
+  flex: 0 0 auto;
   width: 44px;
+  height: 40px; /* ✅ keep it visible and aligned */
   border: none;
   border-radius: 10px;
   cursor: pointer;
