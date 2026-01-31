@@ -42,7 +42,12 @@ public class AuthController {
                 .claim("username", user.getUsername())
                 .build();
 
-        String token = jwtEncoder.encode(JwtEncoderParameters.from(claims)).getTokenValue();
+        JwsHeader header = JwsHeader.with(org.springframework.security.oauth2.jose.jws.MacAlgorithm.HS256)
+                .type("JWT")
+                .build();
+
+        String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+
 
         return Map.of(
                 "token", token,

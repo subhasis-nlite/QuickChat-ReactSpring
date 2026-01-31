@@ -31,3 +31,17 @@ npm run dev -- --host
 npm run dev -- --host 0.0.0.0 --port 5173
 
 
+curl -v -X POST http://192.168.1.8:8080/api/auth/login -H "Content-Type: application/json" -d '{"username":"test"}'
+
+
+cd quickchat
+git status
+git add .
+git commit -m "Fix actuator setup and security config"
+
+git branch : this will show the branch name we are making changes
+
+Then push (most likely main):
+git push origin main
+
+
